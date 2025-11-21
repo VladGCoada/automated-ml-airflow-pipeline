@@ -1,0 +1,89 @@
+# docker-compose.yaml
+version: '3.8'
+
+x-airflow-common: &airflow-common
+  # This section defines common settings for Airflow services (webserver, scheduler, etc.)
+  image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:2.8.1}
+  environment:
+    # Basic Airflow settings
+    &airflow-env
+    AIRFLOW_UID: ${AIRFLOW_UID}
+    AIRFLOW_GID: ${AIRFLOW_GID}
+    AIRFLOW_HOME: /opt/airflow
+    AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    AIRFLOW__WEBSERVER__SECRET_KEY: 'super-secret-key-change-me'
+    # MLflow setting - crucial for your training script
+    MLFLOW_TRACKING_URI: http://mlflow:5000
+    
+  # Volumes mounting local folders into the container
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./scripts:/opt/airflow/scripts
+    # Mount the Python requirements file so Airflow can install packages
+    - ./requirements.txt:/opt/airflow/requirements.txt
+    # Mount your local data folder into the container at /opt/airflow/data
+    - C:/projects/automated_ML_AIRFLOW_PIPELINE/m5data:/opt/airflow/data
+  
+  # Dependencies
+  depends_on:
+    postgres:
+      condition: service_healthy
+    mlflow:
+      condition: service_started # MLflow starts before Airflow needs it
+
+services:
+
+  postgres:
+    # Your Feature Store and Airflow Metadata Database
+    image: postgres:14-alpine
+    container_name: postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    healthcheck: # Ensure the database is ready before Airflow tries to connect
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Airflow Initialization - Runs once to set up the DB
+  airflow_init:
+    <<: *airflow-common
+    container_name: airflow_init
+    entrypoint: /bin/bash
+    command: ["-c", "pip install -r /opt/airflow/requirements.txt && airflow db migrate && airflow users create --username ${_AIRFLOW_WWW_USER_USERNAME} --firstname Airflow --lastname Admin --role Admin --email admin@example.com -p ${_AIRFLOW_WWW_USER_PASSWORD}"]
+    user: "${AIRFLOW_UID}:0"
+    
+  # Airflow Webserver
+  airflow_webserver:
+    <<: *airflow-common
+    container_name: airflow_webserver
+    command: airflow webserver
+    ports:
+      - "8080:8080"
+    user: "${AIRFLOW_UID}:0"
+    restart: always
+    
+  # Airflow Scheduler
+  airflow_scheduler:
+    <<: *airflow-common
+    container_name: airflow_scheduler
+    command: airflow scheduler
+    user: "${AIRFLOW_UID}:0"
+    restart: always
+
+  # MLflow Tracking Server
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:latest
+    container_name: mlflow
+    ports:
+      - "5000:5000"
+    # Use a file system backend for simplicity, located in a volume
+    command: mlflow server --backend-store-uri file:/mlruns --host 0.0.0.0 --port 5000
+    volumes:
+      - ./mlruns:/mlruns
+    restart: always

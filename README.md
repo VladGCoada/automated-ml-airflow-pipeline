@@ -111,9 +111,9 @@ Cloud storage (S3/GCS/Azure)
 
 Status
 
-✔ DAG operational
-✔ MLflow tracking working
-✔ Model registry enabled
-✔ Dockerized environment
-⬜ Optional: advanced models (Prophet, XGBoost)
-⬜ Optional: CI/CD workflows
+ DAG operational
+  MLflow tracking working
+ Model registry enabled
+ Dockerized environment
+ Optional: advanced models (Prophet, XGBoost)
+ Optional: CI/CD workflows

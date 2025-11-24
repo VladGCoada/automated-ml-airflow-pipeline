@@ -1,0 +1,8 @@
+m5data/
+data/
+.env
+logs/
+__pycache__/
+mlruns/
+*.pyc
+.DS_Store

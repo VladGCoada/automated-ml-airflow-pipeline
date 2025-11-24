@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Data
+m5data/
+mlruns/
+mlflow/mlflow-artifacts/
+
+# Env
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# Airflow
+logs/
+plugins/
